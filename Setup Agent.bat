@@ -123,6 +123,21 @@ if errorlevel 1 (
 echo.
 echo ===================================================
 echo [SUCCESS] Setup is complete!
-echo You can now run Start Agent.bat to use TubeTrail.
+echo.
+echo To start TubeTrail right now:
+echo   1. Double-click: "Start Agent.bat"
+echo   OR
+echo   2. Run command:  node server.mjs
+echo.
+echo Web interface will be available at: http://127.0.0.1:4173
 echo ===================================================
+echo.
+set "LAUNCH_NOW=n"
+set /p "LAUNCH_NOW=Would you like to start TubeTrail right now? (y/n): "
+if /i "%LAUNCH_NOW%"=="y" (
+  echo.
+  echo Starting TubeTrail...
+  start "" "Start Agent.bat"
+  exit /b 0
+)
 pause
