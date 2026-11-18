@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f7f4">
+  <title>YouTube Transcript Agent</title>
+  <style>
+    :root { color-scheme: light; --ink:#20231f; --muted:#747970; --line:#e3e5de; --paper:#fff; --bg:#f7f7f4; --green:#52745a; --green-dark:#3e5c46; --red:#a44a40; }
+    * { box-sizing:border-box }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+    main { width:min(760px, calc(100% - 32px)); margin:48px auto 72px; }
+    .eyebrow { color:var(--green); font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    h1 { margin:8px 0 6px; font-size:clamp(28px,5vw,38px); line-height:1.15; letter-spacing:-.035em; }
+    .intro { margin:0 0 28px; color:var(--muted); max-width:610px; }
+    .card { background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:24px; box-shadow:0 8px 28px #25332108; }
+    label { display:block; font-weight:650; margin-bottom:8px; }
+    textarea { display:block; width:100%; min-height:145px; resize:vertical; padding:14px 15px; border:1px solid #d8dbd3; border-radius:11px; color:var(--ink); background:#fff; font:14px/1.55 "Segoe UI",system-ui,sans-serif; outline:none; }
+    textarea:focus,input:focus { border-color:var(--green); box-shadow:0 0 0 3px #52745a1c; }
+    .help { margin:8px 0 20px; color:var(--muted); font-size:13px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    button { min-height:43px; padding:10px 16px; border:1px solid transparent; border-radius:10px; cursor:pointer; font:650 14px "Segoe UI",system-ui,sans-serif; transition:background .15s, transform .15s; }
+    button:active { transform:translateY(1px) }
+    button:disabled { opacity:.55; cursor:wait; }
+    .primary { color:#fff; background:var(--green); }
+    .primary:hover:not(:disabled) { background:var(--green-dark); }
+    .secondary { color:var(--ink); background:#fff; border-color:var(--line); }
+    .secondary:hover:not(:disabled) { background:#f5f6f1; }
+    .folder-state { color:var(--muted); font-size:13px; margin-left:auto; }
+    .notice { margin-top:16px; padding:12px 14px; border-radius:10px; background:#f1f4ed; color:#536052; font-size:13px; }
+    .notice.warn { background:#fff4e9; color:#81562b; }
+    .notice.error { background:#fff0ed; color:#91473e; }
+    .progress { margin-top:24px; }
+    .progress-head { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:13px; margin-bottom:9px; }
+    .meter { height:5px; background:#e8eae4; border-radius:9px; overflow:hidden; }
+    .meter > span { display:block; width:0; height:100%; background:var(--green); transition:width .25s; }
+    .items { display:grid; gap:9px; margin-top:16px; }
+    .item { display:flex; align-items:flex-start; gap:11px; border:1px solid var(--line); border-radius:12px; padding:12px 13px; background:#fff; }
+    .dot { width:9px; height:9px; flex:none; margin-top:6px; border-radius:50%; background:#c6c9c1; }
+    .item[data-state="working"] .dot { background:#bd8749; animation:pulse 1s infinite alternate; }
+    .item[data-state="saved"] .dot { background:#5b8a61; }
+    .item[data-state="failed"] .dot { background:#b65a4e; }
+    .item-title { font-weight:650; overflow-wrap:anywhere; }
+    .item-detail { color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+    .item[data-state="failed"] .item-detail { color:var(--red); }
+    .item .retry { margin-left:auto; flex:none; min-height:34px; padding:6px 10px; font-size:12px; }
+    .divider { height:1px; background:var(--line); margin:22px 0; }
+    .foot { color:var(--muted); font-size:12px; margin-top:18px; }
+    dialog { width:min(480px,calc(100% - 28px)); padding:0; border:0; border-radius:16px; box-shadow:0 24px 80px #16201438; }
+    dialog::backdrop { background:#17201966; backdrop-filter:blur(2px); }
+    .dialog-body { padding:24px; }
+    .dialog-body h2 { margin:0 0 4px; font-size:21px; }
+    .dialog-body p { color:var(--muted); margin:0 0 18px; font-size:14px; }
+    input[type=text] { width:100%; min-height:44px; padding:10px 12px; border:1px solid #d8dbd3; border-radius:9px; font:15px "Segoe UI",system-ui,sans-serif; outline:none; }
+    .dialog-actions { justify-content:flex-end; margin-top:19px; }
+    @keyframes pulse { to { opacity:.35 } }
+    @media(max-width:520px) { main{margin:26px auto 48px}.card{padding:18px}.folder-state{width:100%;margin:2px 0 0} }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">A simple local tool</div>
+    <h1>YouTube Transcript Agent</h1>
+    <p class="intro">Add one video or a list of videos. The app retrieves available captions directly from YouTube and saves them as text files. Add a <strong>#name</strong> line under a link to set its filename.</p>
+    <section class="card">
+      <label for="urls">YouTube video links</label>
+      <textarea id="urls" placeholder="https://www.youtube.com/watch?v=…&#10;#name Biology lecture notes&#10;&#10;https://youtu.be/…&#10;#name History chapter 2"></textarea>
+      <p class="help">Put <strong>#name Your file name</strong> on the line just below a link. Use one link per line. The name is used for the saved .txt file; if you leave it out, the app will ask you. Only videos with captions can produce a transcript.</p>
+      <div class="row">
+        <button id="folder" class="secondary" type="button">Choose save folder</button>
+        <span id="folderState" class="folder-state">No folder selected</span>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="start" class="primary" type="button">Get transcripts</button>
+        <button id="clear" class="secondary" type="button">Clear links</button>
+      </div>
+      <div id="notice" class="notice" role="status">Choose a folder, paste your links, then start. You can retry any link that could not be retrieved.</div>
+      <div class="progress" id="progress" hidden>
+        <div class="progress-head"><span id="progressLabel">Ready</span><span id="progressCount"></span></div>
+        <div class="meter"><span id="meterFill"></span></div>
+        <div id="items" class="items"></div>
+      </div>
+      <div class="foot">Each text file starts with your YouTube link, followed by ten blank lines and the transcript. The app retrieves existing captions; videos without accessible captions cannot be transcribed.</div>
+    </section>
+  </main>
+
+  <dialog id="nameDialog">
+    <form class="dialog-body" id="nameForm" method="dialog">
+      <h2 id="dialogTitle">Name this transcript</h2>
+      <p id="dialogSubtitle">Choose a filename for the text file.</p>
+      <input id="filename" type="text" autocomplete="off" required>
+      <div class="row dialog-actions">
+        <button class="secondary" id="skip" type="button">Skip this video</button>
+        <button class="primary" type="submit">Save transcript</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let folderReady = false, busy = false;
+    function setNotice(message, kind = '') { const n = $('notice'); n.textContent = message; n.className = `notice ${kind}`.trim(); }
+    function linkList() {
+      const lines = $('urls').value.split(/\r?\n/);
+      const entries = [];
+      let awaitingNameFor = null;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        if (/^#name\b/i.test(line)) {
+          const name = line.replace(/^#name\b\s*[:=]?[ \t]*/i, '').trim();
+          if (entries.length) {
+            awaitingNameFor = entries.length - 1;
+            if (name) { entries[awaitingNameFor].name = name; awaitingNameFor = null; }
+          }
+          continue;
+        }
+        if (awaitingNameFor !== null && !/(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(line)) {
+          entries[awaitingNameFor].name = line;
+          awaitingNameFor = null;
+          continue;
+        }
+        const matches = line.match(/(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/[^\s,;]+/gi) || [];
+        for (const match of matches) {
+          let url = match.replace(/[)\]}.,]+$/g, '');
+          if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+          entries.push({ url, name: '' });
+          awaitingNameFor = null;
+        }
+      }
+      return entries;
+    }
+    async function chooseFolder() {
+      if (busy) return;
+      try {
+        $('folder').disabled = true;
+        setNotice('Choose a folder in the Windows dialog…');
+        const pickedResponse = await fetch('/api/select-folder', { method: 'POST' });
+        const picked = await pickedResponse.json();
+        if (!pickedResponse.ok) throw new Error(picked.error || 'Folder picker failed.');
+        if (picked.cancelled) { setNotice('Folder selection was cancelled. Choose a folder to continue.', 'warn'); return; }
+        folderReady = true;
+        $('folderState').textContent = picked.path;
+        setNotice('Folder ready. Paste one or more links and start.');
+      } catch (error) {
+        setNotice(`Could not set the save folder: ${error.message}`, 'error');
+      } finally {
+        $('folder').disabled = false;
+      }
+    }
+    function addItem(index, entry) {
+      const row = document.createElement('div'); row.className = 'item'; row.dataset.state = 'waiting';
+      const dot = document.createElement('span'); dot.className = 'dot';
+      const content = document.createElement('div');
+      const title = document.createElement('div'); title.className = 'item-title'; title.textContent = `Video ${index + 1}`;
+      const detail = document.createElement('div'); detail.className = 'item-detail'; detail.textContent = entry.url;
+      const retry = document.createElement('button'); retry.className = 'secondary retry'; retry.textContent = 'Retry'; retry.hidden = true;
+      retry.addEventListener('click', () => retryItem(row, entry));
+      content.append(title, detail); row.append(dot, content, retry); $('items').append(row); return { row, title, detail, retry };
+    }
+    function filenameBase(title) { return title.replace(/[\\/:*?"<>|]/g, '').replace(/[. ]+$/g, '').trim().slice(0, 100) || 'YouTube transcript'; }
+    function askFilename(video, index, count) {
+      return new Promise(resolve => {
+        const dialog = $('nameDialog');
+        $('dialogTitle').textContent = `Name transcript ${index + 1} of ${count}`;
+        $('dialogSubtitle').textContent = video.title;
+        $('filename').value = filenameBase(video.title);
+        $('skip').hidden = false;
+        const form = $('nameForm');
+        const onSubmit = (event) => { event.preventDefault(); const value = $('filename').value.trim(); if (value) dialog.close(value); };
+        const onSkip = () => dialog.close('');
+        const onClose = () => { cleanup(); resolve(dialog.returnValue || null); };
+        const cleanup = () => { form.removeEventListener('submit', onSubmit); $('skip').removeEventListener('click', onSkip); dialog.removeEventListener('close', onClose); };
+        form.addEventListener('submit', onSubmit); $('skip').addEventListener('click', onSkip); dialog.addEventListener('close', onClose); dialog.showModal(); $('filename').focus(); $('filename').select();
+      });
+    }
+    async function saveTranscript(video, name) {
+      const response = await fetch('/api/save-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, content: `${video.url}${'\n'.repeat(11)}${video.transcript}\n` }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not save the transcript.');
+      return result.filename;
+    }
+    async function getTranscript(url) {
+      const response = await fetch('/api/transcript', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Transcript retrieval failed.');
+      return result;
+    }
+    async function retryItem(row, entry) {
+      if (busy || !folderReady) return;
+      busy = true; $('start').disabled = true; $('folder').disabled = true; $('clear').disabled = true;
+      const title = row.querySelector('.item-title'), detail = row.querySelector('.item-detail'), retry = row.querySelector('.retry');
+      retry.hidden = true; row.dataset.state = 'working'; detail.textContent = 'Retrying transcript retrieval…';
+      try {
+        const video = await getTranscript(entry.url); title.textContent = video.title;
+        const name = entry.name || await askFilename(video, 0, 1);
+        if (!name) { row.dataset.state = 'failed'; detail.textContent = 'Skipped; no file was saved.'; retry.hidden = false; }
+        else { const savedName = await saveTranscript(video, name); row.dataset.state = 'saved'; detail.textContent = `Saved as ${savedName} · ${video.transcript.length.toLocaleString()} characters`; }
+      } catch (error) { row.dataset.state = 'failed'; detail.textContent = error.message; retry.hidden = false; }
+      busy = false; $('start').disabled = false; $('folder').disabled = false; $('clear').disabled = false;
+    }
+    async function run() {
+      if (busy) return;
+      const entries = linkList();
+      if (!entries.length) { setNotice('Paste at least one valid YouTube link to begin.', 'warn'); $('urls').focus(); return; }
+      if (!folderReady) { setNotice('Choose a save folder before starting.', 'warn'); return; }
+      busy = true; $('start').disabled = true; $('folder').disabled = true; $('clear').disabled = true;
+      $('progress').hidden = false; $('items').replaceChildren();
+      const rows = entries.map((entry, i) => addItem(i, entry));
+      let saved = 0, failed = 0, skipped = 0;
+      for (let i = 0; i < entries.length; i++) {
+        const item = rows[i], entry = entries[i]; item.row.dataset.state = 'working'; $('progressLabel').textContent = `Retrieving video ${i + 1}`; $('progressCount').textContent = `${i + 1} of ${entries.length}`;
+        $('meterFill').style.width = `${Math.round(i / entries.length * 100)}%`;
+        try {
+          const video = await getTranscript(entry.url);
+          item.title.textContent = video.title; item.detail.textContent = `${video.language} · ${video.transcript.length.toLocaleString()} characters`;
+          const name = entry.name || await askFilename(video, i, entries.length);
+          if (!name) { item.row.dataset.state = 'failed'; item.detail.textContent = 'Skipped; no file was saved.'; item.retry.hidden = false; skipped++; continue; }
+          const savedName = await saveTranscript(video, name); item.row.dataset.state = 'saved'; item.detail.textContent = `Saved as ${savedName} · ${video.transcript.length.toLocaleString()} characters`; saved++;
+        } catch (error) { item.row.dataset.state = 'failed'; item.detail.textContent = error.message; item.retry.hidden = false; failed++; }
+      }
+      $('meterFill').style.width = '100%'; $('progressLabel').textContent = 'Batch complete'; $('progressCount').textContent = `${saved} saved`;
+      const parts = [`Saved ${saved} ${saved === 1 ? 'transcript' : 'transcripts'}.`];
+      if (failed) parts.push(`${failed} could not be retrieved or saved; use Retry beside any failed video.`);
+      if (skipped) parts.push(`${skipped} skipped.`);
+      setNotice(parts.join(' '), failed || skipped ? 'warn' : '');
+      busy = false; $('start').disabled = false; $('folder').disabled = false; $('clear').disabled = false;
+    }
+    $('folder').addEventListener('click', chooseFolder);
+    $('start').addEventListener('click', run);
+    $('clear').addEventListener('click', () => { if (!busy) $('urls').value = ''; });
+  </script>
+</body>
+</html>
