@@ -49,8 +49,8 @@ async function readJson(req) {
 }
 
 async function chooseWindowsFolder() {
-  const ps = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description='Select the folder where YouTube transcripts should be saved'; $d.ShowNewFolderButton=$false; if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; [Console]::Write($d.SelectedPath)}";
-  const { stdout } = await execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: false, timeout: 180_000, maxBuffer: 1024 * 1024, encoding: 'utf8' });
+  const ps = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Windows.Forms; $form=New-Object System.Windows.Forms.Form; $form.TopMost=$true; $d=New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description='Select the folder where YouTube transcripts should be saved'; $d.ShowNewFolderButton=$true; if($d.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK){[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; [Console]::Write($d.SelectedPath)}; $form.Dispose()";
+  const { stdout } = await execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-Command', ps], { windowsHide: false, timeout: 180_000, maxBuffer: 1024 * 1024, encoding: 'utf8' });
   return stdout.trim();
 }
 
