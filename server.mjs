@@ -54,12 +54,37 @@ async function chooseWindowsFolder() {
   return stdout.trim();
 }
 
+async function runPythonScript(script, args) {
+  const candidates = [
+    { cmd: 'py', prefixArgs: ['-3.11', '-c', script] },
+    { cmd: 'py', prefixArgs: ['-c', script] },
+    { cmd: 'python', prefixArgs: ['-c', script] },
+  ];
+  let lastError;
+  for (const candidate of candidates) {
+    try {
+      return await execFile(candidate.cmd, [...candidate.prefixArgs, ...args], {
+        windowsHide: true,
+        timeout: 120_000,
+        maxBuffer: 20 * 1024 * 1024,
+        encoding: 'utf8'
+      });
+    } catch (err) {
+      lastError = err;
+      if (err.code === 'ENOENT') continue;
+      if (/No module named/i.test(err.stderr || err.stdout || '')) continue;
+      break;
+    }
+  }
+  throw lastError;
+}
+
 async function extract(url) {
   const id = videoId(url);
   const pythonScript = `import json, sys\nfrom youtube_transcript_api import YouTubeTranscriptApi\nvideo_id, url = sys.argv[1], sys.argv[2]\ntry:\n    fetched = YouTubeTranscriptApi().fetch(video_id, languages=['en', 'hi'])\nexcept Exception as first:\n    try:\n        tracks = YouTubeTranscriptApi().list(video_id)\n        track = next(iter(tracks), None)\n        if track is None:\n            raise first\n        fetched = track.fetch()\n    except Exception as exc:\n        print(json.dumps({'error': str(exc)}))\n        sys.exit(2)\ntext = ' '.join(part.text.replace('\\n', ' ').strip() for part in fetched if part.text.strip())\nif not text:\n    print(json.dumps({'error': 'The available caption track was empty.'}))\n    sys.exit(3)\nprint(json.dumps({'url': url, 'title': 'YouTube transcript', 'transcript': text, 'language': fetched.language}))`;
   let result;
   try {
-    const { stdout } = await execFile('py', ['-3.11', '-c', pythonScript, id, url], { windowsHide: true, timeout: 120_000, maxBuffer: 20 * 1024 * 1024, encoding: 'utf8' });
+    const { stdout } = await runPythonScript(pythonScript, [id, url]);
     result = JSON.parse(stdout.trim());
   } catch (error) {
     const output = `${error.stdout || ''}\n${error.stderr || ''}`.trim();
@@ -68,7 +93,7 @@ async function extract(url) {
       try { result = JSON.parse(match[0]); } catch { /* report the setup message below */ }
     }
     if (result?.error) throw new Error(result.error);
-    if (error.code === 'ENOENT') throw new Error('Python 3.11 was not found. Install Python 3.11, then run Setup Agent.bat.');
+    if (error.code === 'ENOENT') throw new Error('Python was not found. Run Setup Agent.bat once to install it.');
     if (/No module named ['"]?youtube_transcript_api/i.test(output)) throw new Error('Transcript support is not installed yet. Close the app and run Setup Agent.bat once.');
     if (error.killed || error.code === 'ETIMEDOUT') throw new Error('YouTube took too long to return captions. Try this video again in a moment.');
     throw new Error(output.slice(-900) || 'Could not retrieve captions from YouTube.');
